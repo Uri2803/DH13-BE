@@ -1,5 +1,5 @@
 interface TokenPayload {
-    userId: number,
+    sub: number,
     isSecondFactorAuthenticated?: boolean;
 }
 import { Injectable } from '@nestjs/common';
@@ -15,7 +15,7 @@ export class JwtRefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-ref
         private readonly configService: ConfigService,
         private readonly userService: UserService,
     ) {
-        const jwtRefreshSecret = configService.get<string>('JWT_REFRESH_SECRET');
+        const jwtRefreshSecret = configService.get<string>('JWT_REFRESH_TOKEN_SECRET');
         if(!jwtRefreshSecret){
             throw new Error('JWT_REFRESH_SECRET is not defined in environment variables');
         }
@@ -31,9 +31,11 @@ export class JwtRefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-ref
     }
 
     async validate(payload: TokenPayload) {
-        const user = await this.userService.getById(payload.userId);
+    
+        const user = await this.userService.getById(payload.sub);
+        console.log(user)
         return {
-            id: payload.userId,
+            id: payload.sub,
             isSecondFactorAuthenticated: payload.isSecondFactorAuthenticated,
             email: user?.email,
             role: user?.role,

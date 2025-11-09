@@ -1,74 +1,76 @@
-import { Injectable } from '@nestjs/common';
-import {JwtService } from '@nestjs/jwt';
+// authentication.service.ts
+import { Injectable , HttpStatus, HttpException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { ConfigService } from '@nestjs/config';
 import { User } from 'src/entities/user.entity';
 import * as bcrypt from 'bcryptjs';
+
 @Injectable()
 export class AuthenticationService {
-    constructor(
-         private readonly jwtService: JwtService, 
-            private readonly userService: UserService,
-            private readonly configService: ConfigService
-    ) {}
+  constructor(
+    private readonly jwtService: JwtService, 
+    private readonly userService: UserService,
+    private readonly configService: ConfigService,
+  ) {}
 
-    public async getCookiesWithJwtAccessToken(user: User): Promise<string> {
-        const payload = {
-            userId: user.id,
-            email: user.email,
-            role: user.role,
-            code: user.code,
-            department: user.department || null,
-         };
-        const accessToken = this.jwtService.sign(payload, {
-            secret: this.configService.get<string>('JWT_ACCESS_TOKEN_SECRET'),
-            expiresIn: this.configService.get('JWT_ACCESS_TOKEN_EXPIRATION_TIME')
-        });
-        return `Authentication=${accessToken}; HttpOnly; Path=/; Max-Age=${this.configService.get('JWT_ACCESS_TOKEN_EXPIRATION_TIME')}`;
+  private getAccessTokenCookie(user: User): string {
+    const payload = {
+      sub: user.id,               
+      email: user.email,
+      role: user.role,
+      code: user.code,
+      department: user.department || null,
+    };
+   const token = this.jwtService.sign(payload, {
+        secret: this.configService.get<string>('JWT_ACCESS_TOKEN_SECRET'),
+        expiresIn: `${this.configService.get(
+        'JWT_ACCESS_TOKEN_EXPIRATION_TIME',
+      )}s`,
+    });
+    return `Authentication=${token}; HttpOnly; Path=/; Path=/; Secure; SameSite=None;  Max-Age=${this.configService.get('JWT_ACCESS_TOKEN_EXPIRATION_TIME')}`;
+  }
+
+  private getRefreshTokenCookie(userId: number): { cookie: string; token: string } {
+    const payload = { sub: userId };
+    const token = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+      expiresIn: `${this.configService.get(
+        'JWT_REFRESH_TOKEN_EXPIRATION_TIME',
+      )}s`,
+    });
+
+    // Dev (HTTP): KHÔNG set Secure. Nếu deploy cross-site => dùng SameSite=None; Secure
+    const cookie = `Refresh=${token}; HttpOnly; Path=/; Path=/; Secure; SameSite=None;  Max-Age=${this.configService.get(
+      'JWT_REFRESH_TOKEN_EXPIRATION_TIME',
+    )}`;
+
+    return { cookie, token };
+  }
+
+  async validateUser(code: string, password: string): Promise<User | null> {
+    const user = await this.userService.getByCode(code);
+    if (user && await this.userService.isPasswordValid(password, user.password)) {
+      return user;
+    }
+    return null;
+  }
+
+  public async login(userCode: string, password: string) {
+    if (!userCode || !password) {
+      throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
+    }
+    const user = await this.validateUser(userCode, password);
+    if (!user) {
+      throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
     }
 
-    public async getCookiesWithJwtRefreshToken(user: User): Promise<string> {
-        const payload = { userId: user.id };
-        const refreshToken = this.jwtService.sign(payload, {
-            secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
-            expiresIn: this.configService.get('JWT_REFRESH_TOKEN_EXPIRATION_TIME')
-        });
-        return `Refresh=${refreshToken}; HttpOnly; Path=/; Max-Age=${this.configService.get('JWT_REFRESH_TOKEN_EXPIRATION_TIME')}`;
-    }
+    const accessTokenCookie = this.getAccessTokenCookie(user);
+    const { cookie: refreshTokenCookie, token: refreshToken } = this.getRefreshTokenCookie(user.id);
 
-    public getCookieForLogOut(): string {
-        return `Authentication=; HttpOnly; Path=/; Max-Age=0`;
-    }
+    await this.userService.setCurrentRefreshToken(refreshToken, user.id);
 
-    public getUserFromAuthenticationToken(token: string) {
-        const payload = this.jwtService.verify(token, {
-            secret: this.configService.get<string>('JWT_ACCESS_TOKEN_SECRET'),
-        });
-        if (payload.userId) {
-            return this.userService.getById(payload.userId);
-        }
-    }
-
-    async validateUser(code: string, password: string): Promise<User | null> {
-        const user = await this.userService.getByCode(code);
-        if (user && await this.userService.isPasswordValid(password, user.password)) {
-            return user;
-        }
-        return null;
-    }
-
-    public async login(userCode: string, password: string) {
-        const user = await this.validateUser(userCode, password);
-        if (!user) {
-            return null;
-        }
-        const accessToken = await this.getCookiesWithJwtAccessToken(user);
-        const refreshToken = await this.getCookiesWithJwtRefreshToken(user);
-        const { password: _, currentHashedRefreshToken, ...userData } = user;
-        return { 
-            user: userData,
-            accessToken,
-            refreshToken
-        };
-    }
+    // Trả cookie string về cho Controller set
+    return { user, accessTokenCookie, refreshTokenCookie };
+  }
 }
