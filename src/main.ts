@@ -10,7 +10,7 @@ async function bootstrap() {
       credentials: true,
       origin: 
         process.env.NODE_ENV === 'dev'
-          ? 'https://localhost:5173'
+          ? ['https://localhost:5173', 'https://192.168.1.12:5173', 'https://192.168.1.14:5173']
           : 'https://your-production-domain.com'
     },
   });

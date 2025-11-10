@@ -37,6 +37,7 @@ export class CheckinController {
   @Post(':delegateInfoId')
   async checkinManual(@Param('delegateInfoId') id: string) {
     const di = await this.checkin.checkinByDelegateInfoId(+id);
+
     return {
       ok: true,
       delegate: {

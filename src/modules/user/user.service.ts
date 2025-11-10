@@ -141,6 +141,30 @@ export class UserService {
         }
     }
 
+    // src/modules/user/user.service.ts
+        async findDelegates() {
+            return this.userRepository.find({
+                where: { role: 'delegate' },
+                relations: ['department', 'delegateInfo'],
+            });
+        }
+
+    async findDelegateById(id: number) {
+        return this.delegateInfoRepository.findOne({
+            where: { id },
+            relations: ['user', 'user.department'],
+        });
+    }
+
+
+     async setCurrentRefreshTokenHash(hash: string, userId: number) {
+        await this.userRepository.update(userId, { currentHashedRefreshToken: hash });
+    }
+
+      async clearCurrentRefreshToken(userId: number) {
+        await this.userRepository.update(userId, { currentHashedRefreshToken: '' });
+    }
+
 
     
 }

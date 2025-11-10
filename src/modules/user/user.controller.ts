@@ -51,6 +51,52 @@ export class UserController {
 
   }
 
+  @Get('delegates')
+  @Roles(Role.ADMIN)
+  getAllDelegates() {
+    return this.userService.findDelegates(); // chỉ role = 'delegate'
+  }
 
+  @Get('department/:id')
+  @Roles(Role.DEPARTMENT, Role.ADMIN)
+  getByDepartment(@Param('id') id: string) {
+    return this.userService.getUserByDepartment(+id); // bạn đã có hàm này
+  }
+
+  @Get('delegates/:id')
+  @Roles(Role.ADMIN, Role.DEPARTMENT)
+  async getDelegateById(@Param('id') id: string) {
+    const item = await this.userService.findDelegateById(Number(id));
+    return { ok: true, item };
+  }
+
+  @HttpCode(200)
+    @Post('refresh')
+        async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+        const r = req.cookies?.['Refresh'];
+        if (!r) return { ok: false, message: 'No refresh cookie' };
+
+        const { accessCookie, refreshCookie, accessToken } =
+            await this.authenticationService.refreshTokens(r);
+
+        res.setHeader('Set-Cookie', [accessCookie, refreshCookie]);
+        return { ok: true, accessToken };
+    }
+
+    @HttpCode(200)
+    @Post('logout')
+    async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+        const r = req.cookies?.['Refresh'];
+        const { clearAccess, clearRefresh } =
+            await this.authenticationService.logout(r);
+
+        res.setHeader('Set-Cookie', [clearAccess, clearRefresh]);
+        return { ok: true };
+    }
+
+  
 
 }
+
+
+

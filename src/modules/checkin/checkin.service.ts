@@ -40,6 +40,9 @@ export class CheckinService {
   }
 
   verifyQrToken(token: string): QrPayload {
+    try{
+
+    
     const payload = this.jwtService.verify(token, {
       secret: this.cfg.get<string>('QR_TOKEN_SECRET'),
     }) as QrPayload;
@@ -47,13 +50,19 @@ export class CheckinService {
       throw new HttpException('QR token invalid', HttpStatus.UNAUTHORIZED);
     }
     return payload;
+    }catch(err){
+        throw new HttpException('QR token invalid', HttpStatus.UNAUTHORIZED);
+    }
   }
 
   async checkinByDelegateInfoId(delegateInfoId: number) {
     const di = await this.delegateInfoRepo.findOne({ where: { id: delegateInfoId }, relations: ['user', 'user.department'] });
     if (!di) throw new HttpException('Delegate not found', HttpStatus.NOT_FOUND);
 
-    if (di.checkedIn) return di; // idempotent
+    // if (di.checkedIn){
+
+    //  return di; 
+    // }
 
     di.checkedIn = true;
     di.checkinTime = new Date();
@@ -72,4 +81,7 @@ export class CheckinService {
     const payload = this.verifyQrToken(token);
     return this.checkinByDelegateInfoId(payload.delegateInfoId);
   }
+
+
+ 
 }
