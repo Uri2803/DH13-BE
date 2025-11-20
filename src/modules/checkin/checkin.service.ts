@@ -81,6 +81,7 @@ export class CheckinService {
     const payload = this.verifyQrToken(token);
     return this.checkinByDelegateInfoId(payload.delegateInfoId);
   }
+  
 
 
  

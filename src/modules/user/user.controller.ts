@@ -1,5 +1,5 @@
 // user.controller.ts
-import { Body, Controller, Get, Post, Req, Res, UseGuards, HttpCode, Put, Param } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards, HttpCode, Put, Param, UseInterceptors, UploadedFile } from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { AuthenticationService } from '../authentication/authentication.service';
 import JwtAuthGuard from 'src/guard/jwt-authentication.guard';
@@ -7,6 +7,17 @@ import { UserService } from './user.service';
 import { User } from 'src/entities/user.entity';
 import { Role } from 'src/common/enum';
 import {Roles} from 'src/common/roles.decorator'
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { CreateDelegateDto } from 'src/Dto/create-delegate.dto';
+const avatarStorage = diskStorage({
+  destination: './uploads/avatars',
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + extname(file.originalname));
+  },
+});
 
 @Controller('user')
 export class UserController {
@@ -93,6 +104,28 @@ export class UserController {
         res.setHeader('Set-Cookie', [clearAccess, clearRefresh]);
         return { ok: true };
     }
+    
+    @Get('resetchecin')
+    @Roles(Role.ADMIN)
+    resetCheckin(@Param('id') id: string) {
+      return this.userService.resetCheckin(); // bạn đã có hàm này
+    }
+
+
+    @Post('admin/delegates')
+    @UseInterceptors(
+      FileInterceptor('avatar', {
+        storage: avatarStorage,
+      }),
+    )
+    async createDelegate(
+      @Body() dto: CreateDelegateDto,
+      @UploadedFile() avatar?: Express.Multer.File,
+    ) {
+      // body là form-data (text fields), avatar là file
+      return this.userService.createOne(dto, avatar);
+    }
+
 
   
 

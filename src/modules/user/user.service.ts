@@ -1,12 +1,16 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entities/user.entity';
-import { Code, In, Repository } from 'typeorm';
+import { Code, DeepPartial, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { plainToInstance } from 'class-transformer';
 import { RealtimeGateway } from '../realtime/realtime.service';
 import {DelegateInfo} from 'src/entities/delegate_info.entity';
 import { Department } from 'src/entities/department.entity';
+import { CreateDelegateDto } from 'src/Dto/create-delegate.dto';
+import multer from 'multer';
+import { ConfigService } from '@nestjs/config';
+
 @Injectable()
 export class UserService {
     constructor(
@@ -16,7 +20,8 @@ export class UserService {
         @InjectRepository(DelegateInfo)
         private readonly delegateInfoRepository: Repository<DelegateInfo>,
         @InjectRepository(Department)
-        private readonly departmentRepository: Repository<Department>
+        private readonly departmentRepository: Repository<Department>,
+        private readonly configService: ConfigService,
     ) {}
 
     async findAll(): Promise<User[]> {
@@ -68,7 +73,9 @@ export class UserService {
     this.realtime.emitCheckinUpdated({
         delegateId: updatedDelegate.id,
         checkedIn: true,
-        checkinTime: updatedDelegate.checkinTime.toISOString(),
+        checkinTime: updatedDelegate.checkinTime
+        ? updatedDelegate.checkinTime.toISOString()
+        : undefined,
     });
 
     return updatedDelegate;
@@ -166,5 +173,119 @@ export class UserService {
     }
 
 
-    
+
+    async resetCheckin() {
+    await this.delegateInfoRepository
+        .createQueryBuilder()
+        .update()
+        .set({ checkedIn: false })
+        .execute();
+    }
+
+
+    /////------------------//////
+
+    // user.service.ts (trong UserService)
+    async createOne(
+    dto: CreateDelegateDto,
+    avatarFile?: Express.Multer.File,
+    ): Promise<User> {
+        console.log(dto.dateOfBirth)
+    // 1. Tìm department
+    const department = await this.departmentRepository.findOne({
+        where: { code: dto.departmentCode },
+    });
+    if (!department) {
+        throw new BadRequestException(
+        `Không tìm thấy khoa với code=${dto.departmentCode}`,
+        );
+    }
+
+    // 2. Check email + code
+    const codeToSave = dto.code || dto.delegateCode;
+    const where: any[] = [{ email: dto.email }];
+    if (codeToSave) where.push({ code: codeToSave });
+
+    const existingUser = await this.userRepository.findOne({ where });
+
+    if (existingUser) {
+        if (existingUser.email === dto.email) {
+        throw new BadRequestException(`Email ${dto.email} đã tồn tại`);
+        }
+        if (codeToSave && existingUser.code === codeToSave) {
+        throw new BadRequestException(`Mã ${codeToSave} đã tồn tại`);
+        }
+    }
+
+    // 3. Password
+    const rawPassword = dto.password || dto.dateOfBirth || '123';
+    const hashed = await bcrypt.hash(rawPassword, 10);
+
+    // 4. Avatar
+    let avaPath: string | undefined;
+    if (avatarFile) {
+    const baseUrl = this.configService.get<string>('PUBLIC_URL') || 'http://localhost:3000';
+
+    // phòng trường hợp windows path có \
+    const fileName = avatarFile.filename.replace(/\\/g, '/');
+
+    // URL public đầy đủ
+    avaPath = `${baseUrl}/uploads/avatars/${fileName}`;
+    }
+
+    // 5. Tạo User
+    const user = new User();
+    user.email = dto.email;
+    user.name = dto.name;
+    if (dto.mssv) user.mssv = dto.mssv;
+    if (codeToSave) user.code = codeToSave;
+    user.password = hashed;
+    user.role = 'delegate';
+    user.department = department;
+    if (avaPath) user.ava = avaPath;
+    user.hasContactInfo = false;
+
+    await this.userRepository.save(user);
+
+    // 6. Tạo DelegateInfo
+    const info = new DelegateInfo();
+    info.user = user;
+    info.department = department;
+
+    if (dto.delegateCode) info.code = dto.delegateCode;
+    if (dto.position) info.position = dto.position;
+    if (dto.mssv_or_mscb || dto.mssv)
+        info.mssv_or_mscb = dto.mssv_or_mscb || dto.mssv;
+    if (dto.dateOfBirth) info.dateOfBirth = dto.dateOfBirth;
+    if (dto.gender) info.gender = dto.gender;
+    if (dto.religion) info.religion = dto.religion;
+    if (dto.ethnicity) info.ethnicity = dto.ethnicity;
+    if (dto.joinUnionDate) info.joinUnionDate = dto.joinUnionDate;
+    if (dto.joinAssociationDate)
+        info.joinAssociationDate = dto.joinAssociationDate;
+    if (dto.isPartyMember !== undefined)
+        info.isPartyMember = dto.isPartyMember;
+    if (dto.studentYear !== undefined) info.studentYear = dto.studentYear;
+    if (dto.academicScore !== undefined)
+        info.academicScore = dto.academicScore;
+    if (dto.achievements) info.achievements = dto.achievements;
+    if (dto.shirtSize) info.shirtSize = dto.shirtSize;
+    if (dto.phone) info.phone = dto.phone;
+    if (dto.emailContact || dto.email)
+        info.email = dto.emailContact || dto.email;
+
+    // mặc định
+    info.checkedIn = false;
+
+    await this.delegateInfoRepository.save(info);
+
+    // 7. Trả về user kèm relations
+    const fullUser = await this.userRepository.findOne({
+        where: { id: user.id },
+        relations: ['department', 'delegateInfo'],
+    });
+
+    return fullUser ?? user;
+    }
+
 }

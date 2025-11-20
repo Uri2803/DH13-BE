@@ -11,8 +11,15 @@ import { AuthenticationService } from './modules/authentication/authentication.s
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { WishesModule } from './modules/wishes/wishes.module';
 import { CheckinModule } from './modules/checkin/checkin.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import { ImagesModule } from './modules/images/images.module';
 @Module({
   imports: [
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'uploads'), // <-- PHẢI LÀ DÒNG NÀY
+      serveRoot: '/uploads',
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: `.env`,
@@ -29,6 +36,7 @@ import { CheckinModule } from './modules/checkin/checkin.module';
     RealtimeModule,
     WishesModule,
     CheckinModule,
+    ImagesModule,
   ],
   controllers: [AppController],
   providers: [AppService, AuthenticationService],
