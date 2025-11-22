@@ -14,6 +14,9 @@ import { CheckinModule } from './modules/checkin/checkin.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { ImagesModule } from './modules/images/images.module';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { CongressScheduleModule } from './modules/congress-schedule/congress-schedule.module';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
@@ -37,6 +40,9 @@ import { ImagesModule } from './modules/images/images.module';
     WishesModule,
     CheckinModule,
     ImagesModule,
+    DocumentsModule,
+    NotificationsModule,
+    CongressScheduleModule,
   ],
   controllers: [AppController],
   providers: [AppService, AuthenticationService],

@@ -61,4 +61,14 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   emitCongressUpdate(payload: { id: string; title: string; createdAt: string; imageUrl?: string }) {
     this.server.emit('congressUpdate.created', payload);
   }
+  emitDocumentsChanged() {
+    this.server.emit('documents:changed');
+  }
+
+  emitDashboardNotificationsRefresh() {
+    this.server.emit('dashboard:notifications:refresh');
+  }
+  emitDashboardScheduleRefresh() {
+    this.server.emit('dashboard:schedule:refresh');
+  }
 }

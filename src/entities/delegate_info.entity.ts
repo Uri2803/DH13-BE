@@ -130,11 +130,11 @@ export class DelegateInfo {
 
   @Column({
     type: 'enum',
-    enum: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+    enum: ['XS', 'S', 'M', 'L', 'XL', 'XXL',  '2XL', '3XL', '4XL' , '5XL'],
     nullable: true,
     comment: 'Cỡ áo',
   })
-  shirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  shirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' |  '2XL' |'3XL'| '4XL' | '5XL';
 
   @Column({
     type: 'varchar',

@@ -31,18 +31,19 @@ export class WishesService {
     return qb.getMany();
   }
 
-  async create(dto: CreateWishDto): Promise<Wish> {
+ async create(dto: CreateWishDto): Promise<Wish> {
     const wish = this.wishRepo.create({
       senderName: dto.senderName.trim(),
       senderPosition: dto.senderPosition?.trim() || null,
+      senderAvatar: dto.senderAvatar || null, 
       content: dto.content.trim(),
       isDelegate: dto.isDelegate ?? false,
-      isVerified: false, // mới gửi lên mặc định chờ duyệt
+      isVerified: false, // Mặc định chờ duyệt
       priority: '3',
     });
 
     return this.wishRepo.save(wish);
-  }
+}
 
   // ---- UPDATE CHO ADMIN ----
   async update(id: number, dto: UpdateWishDto): Promise<Wish> {

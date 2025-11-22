@@ -12,7 +12,7 @@ async function bootstrap() {
       origin: 
         process.env.NODE_ENV === 'dev'
           ? ['https://localhost:5173', 'https://192.168.1.12:5173', 'https://192.168.1.14:5173']
-          : 'https://your-production-domain.com'
+          : 'https://daihoi.hsvhcmus.io.vn'
     },
   });
   app.use(cookieParser());

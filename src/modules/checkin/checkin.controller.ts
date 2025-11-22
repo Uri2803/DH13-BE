@@ -57,7 +57,7 @@ export class CheckinController {
   @Get('qr-image/:delegateInfoId')
   async qrPng(@Param('delegateInfoId') id: string, @Res() res: Response) {
     // tạo token & ảnh QR
-    const token = this.checkin.createQrToken(+id);
+    const token = this.checkin.createQrToken(id);
     const content = `CHK1.${token}`;
 
     // tránh thêm lib mới, bạn có thể cài `qrcode`
@@ -72,12 +72,8 @@ export class CheckinController {
   @Roles(Role.ADMIN)
   @Get('qr-Funcion/:Funcionid')
   async qrPngFuncion(@Param('delegateInfoId') id: string, @Res() res: Response) {
-    // tạo token & ảnh QR
-    const token = this.checkin.createQrToken(+id);
+    const token = this.checkin.createQrToken(id);
     const content = `CHK1.${token}`;
-
-    // tránh thêm lib mới, bạn có thể cài `qrcode`
-    // npm i qrcode
     const QRCode = require('qrcode');
     res.setHeader('Content-Type', 'image/png');
     QRCode.toFileStream(res, content, { margin: 1, width: 500 });

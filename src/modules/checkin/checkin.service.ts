@@ -8,9 +8,9 @@ import { RealtimeGateway } from '../realtime/realtime.service';
 
 type QrPayload = {
   typ: 'qr-checkin';
-  delegateInfoId: number;
+  delegateCode: string;
   eventId?: number;
-  sub: number;       // delegateInfoId
+  sub: string;       // delegateInfoId
   iat?: number;
   exp?: number;
 };
@@ -25,12 +25,12 @@ export class CheckinService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
-  createQrToken(delegateInfoId: number, eventId?: number) {
+  createQrToken(delegateCode: string, eventId?: number) {
     const payload: QrPayload = {
       typ: 'qr-checkin',
-      delegateInfoId,
+      delegateCode,
       eventId,
-      sub: delegateInfoId,
+      sub: delegateCode,
     };
     const token = this.jwtService.sign(payload, {
         secret: this.cfg.get<string>('QR_TOKEN_SECRET'),
@@ -46,7 +46,7 @@ export class CheckinService {
     const payload = this.jwtService.verify(token, {
       secret: this.cfg.get<string>('QR_TOKEN_SECRET'),
     }) as QrPayload;
-    if (payload?.typ !== 'qr-checkin' || !payload?.delegateInfoId) {
+    if (payload?.typ !== 'qr-checkin' || !payload?.delegateCode) {
       throw new HttpException('QR token invalid', HttpStatus.UNAUTHORIZED);
     }
     return payload;
@@ -77,9 +77,26 @@ export class CheckinService {
     return saved;
   }
 
+     async checkinByDelegateCode(delegateCode: string) {
+    const di = await this.delegateInfoRepo.findOne({ where: { code: delegateCode}, relations: ['user', 'user.department'] });
+    if (!di) throw new HttpException('Delegate not found', HttpStatus.NOT_FOUND);
+    di.checkedIn = true;
+    di.checkinTime = new Date();
+    const saved = await this.delegateInfoRepo.save(di);
+
+    this.realtime.emitCheckinUpdated({
+      delegateId: saved.id,
+      checkedIn: true,
+      checkinTime: saved.checkinTime?.toISOString(),
+    });
+
+    return saved;
+  }
+  
+
   async checkinByQrToken(token: string) {
     const payload = this.verifyQrToken(token);
-    return this.checkinByDelegateInfoId(payload.delegateInfoId);
+    return this.checkinByDelegateCode(payload.delegateCode);
   }
   
 

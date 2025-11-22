@@ -42,7 +42,7 @@ export class UserService {
             const user = await this.userRepository.findOne({ where: { code }, relations: ['department'] });
             return user;
         } catch(err){
-            console.error('Error fetching user by code:', err);
+           
             return null;
         }
     }
@@ -190,7 +190,6 @@ export class UserService {
     dto: CreateDelegateDto,
     avatarFile?: Express.Multer.File,
     ): Promise<User> {
-        console.log(dto.dateOfBirth)
     // 1. Tìm department
     const department = await this.departmentRepository.findOne({
         where: { code: dto.departmentCode },
@@ -200,7 +199,7 @@ export class UserService {
         `Không tìm thấy khoa với code=${dto.departmentCode}`,
         );
     }
-
+    
     // 2. Check email + code
     const codeToSave = dto.code || dto.delegateCode;
     const where: any[] = [{ email: dto.email }];
@@ -218,9 +217,9 @@ export class UserService {
     }
 
     // 3. Password
+    
     const rawPassword = dto.password || dto.dateOfBirth || '123';
     const hashed = await bcrypt.hash(rawPassword, 10);
-
     // 4. Avatar
     let avaPath: string | undefined;
     if (avatarFile) {
@@ -263,13 +262,16 @@ export class UserService {
     if (dto.joinUnionDate) info.joinUnionDate = dto.joinUnionDate;
     if (dto.joinAssociationDate)
         info.joinAssociationDate = dto.joinAssociationDate;
-    if (dto.isPartyMember !== undefined)
+    if (dto.isPartyMember !== undefined){
         info.isPartyMember = dto.isPartyMember;
+
+    }
     if (dto.studentYear !== undefined) info.studentYear = dto.studentYear;
     if (dto.academicScore !== undefined)
         info.academicScore = dto.academicScore;
     if (dto.achievements) info.achievements = dto.achievements;
     if (dto.shirtSize) info.shirtSize = dto.shirtSize;
+
     if (dto.phone) info.phone = dto.phone;
     if (dto.emailContact || dto.email)
         info.email = dto.emailContact || dto.email;
@@ -284,8 +286,163 @@ export class UserService {
         where: { id: user.id },
         relations: ['department', 'delegateInfo'],
     });
+    
 
     return fullUser ?? user;
     }
+
+    async changePassword(
+  userId: number,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = await this.userRepository.findOne({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundException('Người dùng không tồn tại');
+  }
+
+  const ok = await this.isPasswordValid(currentPassword, user.password);
+  if (!ok) {
+    throw new BadRequestException('Mật khẩu hiện tại không đúng');
+  }
+
+  await this.updatePassword(userId, newPassword);
+}
+
+async updateAvatar(userId: number, avatarFile: Express.Multer.File) {
+  if (!avatarFile) {
+    throw new BadRequestException('File avatar là bắt buộc');
+  }
+
+  const baseUrl =
+    this.configService.get<string>('PUBLIC_URL') || 'http://localhost:3000';
+
+  const fileName = avatarFile.filename.replace(/\\/g, '/');
+  const avaPath = `${baseUrl}/uploads/avatars/${fileName}`;
+
+  await this.userRepository.update(userId, { ava: avaPath });
+
+  // trả về user đầy đủ để FE có thể update lại
+  return this.getById(userId);
+}
+
+  async updateOne(
+    id: number,
+    dto: Partial<CreateDelegateDto>,
+    avatarFile?: Express.Multer.File,
+  ) {
+    // id đang truyền từ FE là id của DelegateInfo
+    const delegateInfo = await this.delegateInfoRepository.findOne({
+      where: { id },
+      relations: ['user', 'department'],
+    });
+
+    if (!delegateInfo) {
+      throw new NotFoundException('Không tìm thấy đại biểu');
+    }
+
+    return this._processUpdate(delegateInfo, dto, avatarFile);
+  }
+
+    // Hàm phụ xử lý logic update để tránh lặp code
+  private async _processUpdate(
+    delegateInfo: DelegateInfo,
+    dto: Partial<CreateDelegateDto>,
+    avatarFile?: Express.Multer.File,
+  ) {
+    return this.userRepository.manager.transaction(async (manager) => {
+      const userRepo = manager.getRepository(User);
+      const delegateRepo = manager.getRepository(DelegateInfo);
+      const departmentRepo = manager.getRepository(Department);
+
+      // Lấy lại user đầy đủ
+      const user = await userRepo.findOne({
+        where: { id: delegateInfo.user.id },
+        relations: ['department'],
+      });
+
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy user của đại biểu');
+      }
+
+      // ===== Avatar (nếu có) – dùng PUBLIC_URL giống createOne / updateAvatar =====
+      if (avatarFile) {
+        const baseUrl =
+          this.configService.get<string>('PUBLIC_URL') ||
+          'http://localhost:3000';
+
+        const fileName = avatarFile.filename.replace(/\\/g, '/');
+        const avaPath = `${baseUrl}/uploads/avatars/${fileName}`;
+        user.ava = avaPath;
+      }
+
+      // ===== Update bảng User =====
+      if (dto.name) user.name = dto.name;
+      if (dto.email) user.email = dto.email;
+
+      const codeToSave = dto.code || dto.delegateCode;
+      if (codeToSave) user.code = codeToSave;
+
+      if (dto.mssv) user.mssv = dto.mssv;
+
+      if (dto.departmentCode) {
+        const dept = await departmentRepo.findOne({
+          where: { code: dto.departmentCode },
+        });
+        if (dept) {
+          user.department = dept;
+          delegateInfo.department = dept; // đồng bộ luôn delegateInfo
+        }
+      }
+
+      await userRepo.save(user);
+
+      // ===== Update bảng DelegateInfo =====
+      if (dto.delegateCode) delegateInfo.code = dto.delegateCode;
+      if (dto.mssv_or_mscb || dto.mssv) {
+        delegateInfo.mssv_or_mscb = dto.mssv_or_mscb || dto.mssv;
+      }
+
+      if (dto.position) delegateInfo.position = dto.position;
+      if (dto.phone) delegateInfo.phone = dto.phone;
+
+      if (dto.dateOfBirth) delegateInfo.dateOfBirth = dto.dateOfBirth;
+      if (dto.gender) delegateInfo.gender = dto.gender;
+      if (dto.religion) delegateInfo.religion = dto.religion;
+      if (dto.ethnicity) delegateInfo.ethnicity = dto.ethnicity;
+
+      if (dto.joinUnionDate) delegateInfo.joinUnionDate = dto.joinUnionDate;
+      if (dto.joinAssociationDate)
+        delegateInfo.joinAssociationDate = dto.joinAssociationDate;
+
+      if (dto.isPartyMember !== undefined) {
+        // nếu FE gửi string '0' / '1' thì convert:
+        // delegateInfo.isPartyMember = Boolean(Number(dto.isPartyMember));
+        delegateInfo.isPartyMember = dto.isPartyMember as any;
+      }
+
+      if (dto.studentYear !== undefined)
+        delegateInfo.studentYear = dto.studentYear as any;
+
+      if (dto.academicScore !== undefined)
+        delegateInfo.academicScore = Number(dto.academicScore);
+
+      if (dto.achievements) delegateInfo.achievements = dto.achievements;
+      if (dto.shirtSize) delegateInfo.shirtSize = dto.shirtSize;
+
+      if (dto.emailContact || dto.email) {
+        delegateInfo.email = dto.emailContact || dto.email;
+      }
+
+      await delegateRepo.save(delegateInfo);
+
+      // Trả về user mới nhất cho FE
+      return userRepo.findOne({
+        where: { id: user.id },
+        relations: ['department', 'delegateInfo'],
+      });
+    });
+  }
+
 
 }

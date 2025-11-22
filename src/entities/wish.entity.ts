@@ -28,6 +28,16 @@ export class Wish {
   @Column({ type: 'tinyint', width: 1, default: 0 })
   isVerified: boolean;
 
+  // [FIX LỖI TẠI ĐÂY]
+  // Đổi từ 'senderAvatar?: string' thành 'string | null'
+  // Để khớp với việc Service gán giá trị null và DB nullable: true
+  @Column({
+    type: 'varchar',
+    length: 500, // Nên tăng length lên 500 phòng trường hợp URL ảnh dài
+    nullable: true,
+  })
+  senderAvatar: string | null; 
+
   @Column({
     type: 'enum',
     enum: ['1', '2', '3'],

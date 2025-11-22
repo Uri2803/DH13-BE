@@ -1,4 +1,5 @@
 // src/delegates/dto/create-delegate.dto.ts
+import { Type } from 'class-transformer';
 import { IsBoolean, IsEmail, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateDelegateDto {
@@ -63,8 +64,8 @@ export class CreateDelegateDto {
 
   @IsOptional()
   @IsBoolean()
+  @Type(() => Boolean)
   isPartyMember?: boolean;
-
   @IsOptional()
   @IsNumber()
   studentYear?: number;
@@ -78,8 +79,8 @@ export class CreateDelegateDto {
   achievements?: string;
 
   @IsOptional()
-  @IsEnum(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
-  shirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  @IsEnum(['XS', 'S', 'M', 'L', 'XL', 'XXL',  '2XL' ,'3XL','4XL' ,'5XL'])
+  shirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | '2XL' |'3XL'| '4XL' | '5XL';
 
   @IsOptional()
   @IsString()

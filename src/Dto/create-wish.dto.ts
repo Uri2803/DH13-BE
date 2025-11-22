@@ -1,29 +1,23 @@
-// src/modules/wishes/dto/create-wish.dto.ts
-import {
-  IsBoolean,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+// src/wishes/dto/create-wish.dto.ts
+import { IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateWishDto {
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
   senderName: string;
 
-  @IsString()
   @IsOptional()
-  @MaxLength(255)
+  @IsString()
   senderPosition?: string;
 
+  // [MỚI] Thêm trường này để nhận avatar từ Frontend
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(500)
+  senderAvatar?: string; 
+
+  @IsString()
   content: string;
 
-  @IsBoolean()
   @IsOptional()
+  @IsBoolean()
   isDelegate?: boolean;
 }

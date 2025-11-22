@@ -1,5 +1,4 @@
-// user.controller.ts
-import { Body, Controller, Get, Post, Req, Res, UseGuards, HttpCode, Put, Param, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards, HttpCode, Put, Param, UseInterceptors, UploadedFile, BadRequestException, Patch } from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { AuthenticationService } from '../authentication/authentication.service';
 import JwtAuthGuard from 'src/guard/jwt-authentication.guard';
@@ -11,6 +10,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { CreateDelegateDto } from 'src/Dto/create-delegate.dto';
+
 const avatarStorage = diskStorage({
   destination: './uploads/avatars',
   filename: (req, file, cb) => {
@@ -50,7 +50,6 @@ export class UserController {
   async updateInfor(
     @Body() data: any
   ){
-    console.log(data)
     return await this.userService.updateInfor(data);
   }
 
@@ -104,7 +103,7 @@ export class UserController {
         res.setHeader('Set-Cookie', [clearAccess, clearRefresh]);
         return { ok: true };
     }
-    
+
     @Get('resetchecin')
     @Roles(Role.ADMIN)
     resetCheckin(@Param('id') id: string) {
@@ -122,14 +121,55 @@ export class UserController {
       @Body() dto: CreateDelegateDto,
       @UploadedFile() avatar?: Express.Multer.File,
     ) {
-      // body là form-data (text fields), avatar là file
       return this.userService.createOne(dto, avatar);
     }
 
+    @Patch('admin/delegates/:id')
+    @UseGuards(JwtAuthGuard)
+    @Roles(Role.ADMIN, Role.DEPARTMENT)
+    @UseInterceptors(FileInterceptor('avatar', { storage: avatarStorage }))
+    async updateDelegate(
+      @Param('id') id: string,
+      @Body() dto: Partial<CreateDelegateDto>, 
+      @UploadedFile() avatar?: Express.Multer.File,
+    ) {
+      const result= await this.userService.updateOne(+id, dto, avatar);
+      return result;
+    }
 
-  
+    // -------------------------------------------
 
+    @UseGuards(JwtAuthGuard)
+    @Put('me/password')
+    async changePassword(
+      @Req() req: Request,
+      @Body() body: { currentPassword: string; newPassword: string },
+    ) {
+      const userId = (req as any).user.id;
+      await this.userService.changePassword(
+        userId,
+        body.currentPassword,
+        body.newPassword,
+      );
+      return { ok: true };
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(
+      FileInterceptor('avatar', {
+        storage: avatarStorage,
+      }),
+    )
+    @Put('me/avatar')
+    async updateAvatar(
+      @Req() req: Request,
+      @UploadedFile() file: Express.Multer.File,
+    ) {
+      if (!file) {
+        throw new BadRequestException('File avatar là bắt buộc');
+      }
+      const userId = (req as any).user.id;
+      const user = await this.userService.updateAvatar(userId, file);
+      return { ok: true, user };
+    }
 }
-
-
-
